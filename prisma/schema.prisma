@@ -7,21 +7,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+  INVESTMENT
+  FUNDING
+  INSURANCE
+}
+
+enum AccountNature {
+  ASSET
+  LIABILITY
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
 model Account {
   id           String        @id @default(cuid())
   name         String
-  type         String
+  type         AccountType
+  nature       AccountNature
   createdAt    DateTime      @default(now())
   transactions Transaction[]
 }
 
+model Category {
+  id           String          @id @default(cuid())
+  name         String
+  type         TransactionType
+  createdAt    DateTime        @default(now())
+  transactions Transaction[]
+}
+
 model Transaction {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   amount      Float
-  type        String
+  type        TransactionType
   description String
-  category    String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
   accountId   String
-  account     Account  @relation(fields: [accountId], references: [id])
+  account     Account         @relation(fields: [accountId], references: [id])
+  categoryId  String
+  category    Category        @relation(fields: [categoryId], references: [id])
 }
