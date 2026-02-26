@@ -10,10 +10,16 @@ const SORT_OPTIONS = [
   { value: "amount_asc", label: "Amount (low→high)" },
 ];
 
+function fmtAmount(amount: number, type: TransactionType, currency: string) {
+  const s = amount.toLocaleString("en-US", { style: "currency", currency });
+  return type === "EXPENSE" ? `-${s}` : `+${s}`;
+}
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -49,9 +55,11 @@ export default function TransactionsPage() {
     Promise.all([
       fetch("/api/accounts").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
-    ]).then(([accs, cats]) => {
+      fetch("/api/settings").then((r) => r.json()),
+    ]).then(([accs, cats, settings]) => {
       setAccounts(accs);
       setCategories(cats);
+      setCurrency(settings.currency ?? "USD");
       setLoading(false);
     });
   }, []);
@@ -307,8 +315,7 @@ export default function TransactionsPage() {
                       t.type === "INCOME" ? "text-green-700" : "text-red-600"
                     }`}
                   >
-                    {t.type === "EXPENSE" ? "-" : "+"}$
-                    {t.amount.toFixed(2)}
+                    {fmtAmount(t.amount, t.type, currency)}
                   </td>
                 </tr>
               ))}

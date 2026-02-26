@@ -19,21 +19,58 @@ const ACCOUNT_TYPES: AccountType[] = [
   "INSURANCE",
 ];
 
+const CURRENCIES: { code: string; label: string }[] = [
+  { code: "USD", label: "USD — US Dollar" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — British Pound" },
+  { code: "JPY", label: "JPY — Japanese Yen" },
+  { code: "CAD", label: "CAD — Canadian Dollar" },
+  { code: "AUD", label: "AUD — Australian Dollar" },
+  { code: "CHF", label: "CHF — Swiss Franc" },
+  { code: "CNY", label: "CNY — Chinese Yuan" },
+  { code: "INR", label: "INR — Indian Rupee" },
+  { code: "MXN", label: "MXN — Mexican Peso" },
+  { code: "BRL", label: "BRL — Brazilian Real" },
+  { code: "SGD", label: "SGD — Singapore Dollar" },
+  { code: "HKD", label: "HKD — Hong Kong Dollar" },
+  { code: "KRW", label: "KRW — South Korean Won" },
+  { code: "NOK", label: "NOK — Norwegian Krone" },
+  { code: "SEK", label: "SEK — Swedish Krona" },
+  { code: "DKK", label: "DKK — Danish Krone" },
+  { code: "NZD", label: "NZD — New Zealand Dollar" },
+  { code: "ZAR", label: "ZAR — South African Rand" },
+  { code: "AED", label: "AED — UAE Dirham" },
+  { code: "VND", label: "VND - Vietnamese Dong" },
+];
+
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/accounts").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
-    ]).then(([accs, cats]) => {
+      fetch("/api/settings").then((r) => r.json()),
+    ]).then(([accs, cats, settings]) => {
       setAccounts(accs);
       setCategories(cats);
+      setCurrency(settings.currency ?? "USD");
       setLoading(false);
     });
   }, []);
+
+  async function handleCurrencyChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const value = e.target.value;
+    setCurrency(value);
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currency: value }),
+    });
+  }
 
   async function refetchAccounts() {
     const data = await fetch("/api/accounts").then((r) => r.json());
@@ -60,6 +97,27 @@ export default function SettingsPage() {
         categories={categories}
         onRefetch={refetchCategories}
       />
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold border-b pb-2">Display Preferences</h2>
+        <div className="max-w-xs">
+          <label className="block text-sm mb-1">Display Currency</label>
+          <select
+            value={currency}
+            onChange={handleCurrencyChange}
+            className="border rounded px-3 py-1.5 w-full bg-white"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Amounts are displayed in this currency without conversion.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

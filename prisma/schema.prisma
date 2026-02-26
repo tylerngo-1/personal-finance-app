@@ -55,3 +55,8 @@ model Transaction {
   categoryId  String
   category    Category        @relation(fields: [categoryId], references: [id])
 }
+
+model Setting {
+  key   String @id
+  value String
+}

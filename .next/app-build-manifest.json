@@ -16,10 +16,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/page.js"
     ],
-    "/transactions/page": [
+    "/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/transactions/page.js"
+      "static/chunks/app/settings/page.js"
     ],
     "/api/accounts/route": [
       "static/chunks/webpack.js",
@@ -31,20 +31,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/categories/route.js"
     ],
-    "/api/transactions/route": [
+    "/api/settings/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/transactions/route.js"
-    ],
-    "/settings/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/settings/page.js"
-    ],
-    "/api/accounts/[id]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/accounts/[id]/route.js"
+      "static/chunks/app/api/settings/route.js"
     ]
   }
 }

@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+function fmt(n: number, currency: string) {
+  return n.toLocaleString("en-US", { style: "currency", currency });
 }
 
 export default async function DashboardPage() {
-  const accounts = await prisma.account.findMany({
-    include: { transactions: true },
-  });
+  const [accounts, currencySetting] = await Promise.all([
+    prisma.account.findMany({ include: { transactions: true } }),
+    prisma.setting.findUnique({ where: { key: "currency" } }),
+  ]);
+  const currency = currencySetting?.value ?? "USD";
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -83,22 +85,22 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <SummaryCard
             label="Total Net Worth"
-            value={fmt(totalNetWorth)}
+            value={fmt(totalNetWorth, currency)}
             color={totalNetWorth >= 0 ? "text-green-700" : "text-red-600"}
           />
           <SummaryCard
             label="This Month Income"
-            value={fmt(monthlyIncome)}
+            value={fmt(monthlyIncome, currency)}
             color="text-green-700"
           />
           <SummaryCard
             label="This Month Expense"
-            value={fmt(monthlyExpense)}
+            value={fmt(monthlyExpense, currency)}
             color="text-red-600"
           />
           <SummaryCard
             label="Net Cash Flow"
-            value={fmt(netCashFlow)}
+            value={fmt(netCashFlow, currency)}
             color={netCashFlow >= 0 ? "text-green-700" : "text-red-600"}
           />
         </div>
@@ -136,7 +138,7 @@ export default async function DashboardPage() {
                     a.balance >= 0 ? "text-green-700" : "text-red-600"
                   }`}
                 >
-                  {fmt(a.balance)}
+                  {fmt(a.balance, currency)}
                 </span>
               </div>
             ))}
@@ -170,7 +172,7 @@ export default async function DashboardPage() {
                       netWorth >= 0 ? "text-green-700" : "text-red-600"
                     }`}
                   >
-                    {fmt(netWorth)}
+                    {fmt(netWorth, currency)}
                   </td>
                 </tr>
               ))}
