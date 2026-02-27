@@ -36,7 +36,12 @@ export default function TransactionsPage() {
   const [txType, setTxType] = useState<TransactionType>("INCOME");
   const [txDescription, setTxDescription] = useState("");
   const [txCategoryId, setTxCategoryId] = useState("");
+  const [txNote, setTxNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Inline note editing
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState("");
 
   const fetchTransactions = useCallback(async () => {
     const params = new URLSearchParams();
@@ -80,11 +85,13 @@ export default function TransactionsPage() {
         type: txType,
         description: txDescription,
         categoryId: txCategoryId,
+        note: txNote || undefined,
       }),
     });
     setTxAmount("");
     setTxDescription("");
     setTxCategoryId("");
+    setTxNote("");
     setSubmitting(false);
     fetchTransactions();
   }
@@ -92,6 +99,18 @@ export default function TransactionsPage() {
   const filteredCategories = categories.filter(
     (c) => !txType || c.type === txType
   );
+
+  async function saveNote(id: string, note: string) {
+    await fetch(`/api/transactions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, note: note || undefined } : t))
+    );
+    setEditingNoteId(null);
+  }
 
   if (loading) return <div className="py-8 text-gray-500">Loading...</div>;
 
@@ -181,6 +200,18 @@ export default function TransactionsPage() {
                   required
                   className="border rounded px-3 py-1.5 w-full"
                   placeholder="e.g. Grocery run"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm mb-1">
+                  Note <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={txNote}
+                  onChange={(e) => setTxNote(e.target.value)}
+                  rows={2}
+                  className="border rounded px-3 py-1.5 w-full resize-none"
+                  placeholder="Any extra detail..."
                 />
               </div>
             </div>
@@ -280,6 +311,7 @@ export default function TransactionsPage() {
               <tr>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Date</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Description</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-600">Note</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Account</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Category</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Type</th>
@@ -293,6 +325,33 @@ export default function TransactionsPage() {
                     {new Date(t.date).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2">{t.description}</td>
+                  <td className="px-4 py-2 text-gray-500 max-w-[180px]">
+                    {editingNoteId === t.id ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingNoteValue}
+                        onChange={(e) => setEditingNoteValue(e.target.value)}
+                        onBlur={() => saveNote(t.id, editingNoteValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveNote(t.id, editingNoteValue);
+                          if (e.key === "Escape") setEditingNoteId(null);
+                        }}
+                        className="border rounded px-2 py-0.5 w-full text-sm"
+                      />
+                    ) : (
+                      <span
+                        onClick={() => {
+                          setEditingNoteId(t.id);
+                          setEditingNoteValue(t.note ?? "");
+                        }}
+                        className="cursor-text hover:bg-gray-100 rounded px-1 py-0.5 block truncate"
+                        title={t.note ?? "Click to add note"}
+                      >
+                        {t.note || <span className="text-gray-300 italic">Add note</span>}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-gray-500">
                     {t.account?.name ?? "—"}
                   </td>
