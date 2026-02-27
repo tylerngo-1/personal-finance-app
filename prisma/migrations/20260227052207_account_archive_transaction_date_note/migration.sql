@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Account" ADD COLUMN     "isArchived" BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE "Transaction" ADD COLUMN     "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "note" TEXT;

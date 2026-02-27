@@ -48,6 +48,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  await prisma.account.delete({ where: { id } });
+  await prisma.account.update({ where: { id }, data: { isArchived: true } });
   return NextResponse.json({ success: true });
 }

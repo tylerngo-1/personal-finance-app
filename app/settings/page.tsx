@@ -171,7 +171,7 @@ function AccountManagement({
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this account and all its transactions?")) return;
+    if (!confirm("Archive this account? It will be hidden from all views.")) return;
     await fetch(`/api/accounts/${id}`, { method: "DELETE" });
     onRefetch();
   }
@@ -318,9 +318,9 @@ function AccountManagement({
                   </button>
                   <button
                     onClick={() => handleDelete(a.id)}
-                    className="text-sm text-red-600 hover:underline"
+                    className="text-sm text-orange-600 hover:underline"
                   >
-                    Delete
+                    Archive
                   </button>
                 </div>
               </div>
@@ -346,6 +346,7 @@ function CategoryManagement({
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<TransactionType>("INCOME");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -378,13 +379,24 @@ function CategoryManagement({
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this category?")) return;
-    await fetch(`/api/categories/${id}`, { method: "DELETE" });
-    onRefetch();
+    setDeleteError(null);
+    const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      setDeleteError(data.error ?? "Failed to delete category.");
+    } else {
+      onRefetch();
+    }
   }
 
   return (
     <section className="space-y-6">
       <h2 className="text-lg font-semibold border-b pb-2">Category Management</h2>
+      {deleteError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          {deleteError}
+        </p>
+      )}
 
       {/* Create form */}
       <div>

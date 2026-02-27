@@ -290,7 +290,7 @@ export default function TransactionsPage() {
               {transactions.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
-                    {new Date(t.createdAt).toLocaleDateString()}
+                    {new Date(t.date).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2">{t.description}</td>
                   <td className="px-4 py-2 text-gray-500">

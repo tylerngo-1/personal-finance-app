@@ -4,6 +4,7 @@ import { AccountType, AccountNature } from "@/lib/types";
 
 export async function GET() {
   const accounts = await prisma.account.findMany({
+    where: { isArchived: false },
     include: { transactions: true },
     orderBy: { createdAt: "asc" },
   });

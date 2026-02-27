@@ -13,13 +13,13 @@ export async function GET(request: Request) {
   const orderBy = (() => {
     switch (sort) {
       case "date_asc":
-        return { createdAt: "asc" as const };
+        return { date: "asc" as const };
       case "amount_asc":
         return { amount: "asc" as const };
       case "amount_desc":
         return { amount: "desc" as const };
       default:
-        return { createdAt: "desc" as const };
+        return { date: "desc" as const };
     }
   })();
 
@@ -41,12 +41,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { accountId, amount, type, description, categoryId } = body as {
+  const { accountId, amount, type, description, categoryId, date, note } = body as {
     accountId: string;
     amount: string | number;
     type: TransactionType;
     description: string;
     categoryId: string;
+    date?: string;
+    note?: string;
   };
 
   if (!accountId || !amount || !type || !description || !categoryId) {
@@ -71,6 +73,8 @@ export async function POST(request: Request) {
       type,
       description,
       categoryId,
+      date: date ? new Date(date) : new Date(),
+      ...(note && { note }),
     },
     include: { account: true, category: true },
   });

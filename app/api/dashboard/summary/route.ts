@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const accounts = await prisma.account.findMany({
+    where: { isArchived: false },
     include: { transactions: true },
   });
 
@@ -24,7 +25,7 @@ export async function GET() {
       account.nature === "ASSET" ? income - expense : expense - income;
 
     account.transactions.forEach((t) => {
-      if (new Date(t.createdAt) >= monthStart) {
+      if (new Date(t.date) >= monthStart) {
         if (t.type === "INCOME") monthlyIncome += t.amount;
         else monthlyExpense += t.amount;
       }
@@ -49,13 +50,14 @@ export async function GET() {
 
   // Net worth history: group transactions by YYYY-MM, compute running total
   const allTransactions = await prisma.transaction.findMany({
-    orderBy: { createdAt: "asc" },
+    where: { account: { isArchived: false } },
+    orderBy: { date: "asc" },
     include: { account: true },
   });
 
   const monthlyDelta: Record<string, number> = {};
   for (const t of allTransactions) {
-    const d = new Date(t.createdAt);
+    const d = new Date(t.date);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthlyDelta[key]) monthlyDelta[key] = 0;
     monthlyDelta[key] += t.type === "INCOME" ? t.amount : -t.amount;

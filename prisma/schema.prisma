@@ -32,6 +32,7 @@ model Account {
   name         String
   type         AccountType
   nature       AccountNature
+  isArchived   Boolean       @default(false)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
 }
@@ -49,6 +50,8 @@ model Transaction {
   amount      Float
   type        TransactionType
   description String
+  note        String?
+  date        DateTime        @default(now())
   createdAt   DateTime        @default(now())
   accountId   String
   account     Account         @relation(fields: [accountId], references: [id])

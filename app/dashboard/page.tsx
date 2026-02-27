@@ -6,7 +6,7 @@ function fmt(n: number, currency: string) {
 
 export default async function DashboardPage() {
   const [accounts, currencySetting] = await Promise.all([
-    prisma.account.findMany({ include: { transactions: true } }),
+    prisma.account.findMany({ where: { isArchived: false }, include: { transactions: true } }),
     prisma.setting.findUnique({ where: { key: "currency" } }),
   ]);
   const currency = currencySetting?.value ?? "USD";
@@ -29,7 +29,7 @@ export default async function DashboardPage() {
       account.nature === "ASSET" ? income - expense : expense - income;
 
     account.transactions.forEach((t) => {
-      if (new Date(t.createdAt) >= monthStart) {
+      if (new Date(t.date) >= monthStart) {
         if (t.type === "INCOME") monthlyIncome += t.amount;
         else monthlyExpense += t.amount;
       }
@@ -55,13 +55,14 @@ export default async function DashboardPage() {
 
   // Net worth history
   const allTransactions = await prisma.transaction.findMany({
-    orderBy: { createdAt: "asc" },
+    where: { account: { isArchived: false } },
+    orderBy: { date: "asc" },
     include: { account: true },
   });
 
   const monthlyDelta: Record<string, number> = {};
   for (const t of allTransactions) {
-    const d = new Date(t.createdAt);
+    const d = new Date(t.date);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthlyDelta[key]) monthlyDelta[key] = 0;
     monthlyDelta[key] += t.type === "INCOME" ? t.amount : -t.amount;

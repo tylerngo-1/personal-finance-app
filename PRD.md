@@ -2,374 +2,449 @@
 
 ### 1. Overview
 
-**Product name**: Personal Finance App  
-**Purpose**: A simple web-based personal finance tracker that helps individual users track accounts, categorize income and expenses, view transaction history, and understand their net worth and monthly cash flow.  
-**Primary user**: Single, authenticated user scenario is implied but not implemented; current app operates as a single-tenant tool against one shared database.
+**Product name**: Personal Finance App
+**Purpose**: A web-based personal finance tracker for a single user to track accounts, categorize income and expenses, record transfers, monitor goals, view reports, and understand net worth and monthly cash flow.
+**Primary user**: Single-tenant tool against one shared database. Multi-user support is permanently out of scope.
+**Target platform**: Desktop browser only. Mobile is not a design target.
+
+---
 
 ### 2. High-Level Goals
 
 - **Track financial accounts** (checking, savings, credit cards, investments, etc.) as either assets or liabilities.
 - **Record transactions** as income or expense, linked to accounts and categories.
+- **Record transfers** between own accounts as a first-class operation (not income or expense).
 - **Categorize cash flows** using income/expense categories.
-- **Provide insights** via a dashboard: total net worth, monthly income/expense, and cumulative net worth over time.
+- **Set and track goals** — savings goals tied to accounts and general financial goals linked to transactions.
+- **Provide insights** via a dashboard and a dedicated reports page.
 - **Standardize display currency** for all formatted amounts (no FX conversion, formatting only).
+- **Export data** as CSV; import from CSV (future).
+
+---
 
 ### 3. Core User Flows & Features
 
 #### 3.1 Navigation & Entry Points
 
-- **Root (`/`)**
-  - Automatically redirects to `/dashboard`.
+- **Root (`/`)** — redirects to `/dashboard`.
+- **Top-level pages** (top navigation bar, links added as features ship):
+  - `/dashboard` — summary cards, account balances, goals widget, net worth table.
+  - `/transactions` — transaction list with filters, modal add/edit form.
+  - `/transfers` — transfer list with modal add/edit form.
+  - `/goals` — goal list and detail views.
+  - `/reports` — charts and breakdowns.
+  - `/settings` — accounts, categories, display currency, theme.
 
-- **Top-level pages**
-  - `/dashboard`: Summary of financial position and history.
-  - `/transactions`: Transaction list with filters and add-transaction form.
-  - `/settings`: Account and category management + display currency preference.
+---
 
 #### 3.2 Accounts Management (`/settings` + `/api/accounts`)
 
 **Entities**
 - Account fields:
-  - `id` (string, cuid, generated)
+  - `id` (string, cuid)
   - `name` (string)
   - `type` (`CHECKING`, `SAVINGS`, `CREDIT_CARD`, `CASH`, `INVESTMENT`, `FUNDING`, `INSURANCE`)
   - `nature` (`ASSET`, `LIABILITY`)
+  - `isArchived` (Boolean, default `false`)
   - `createdAt` (DateTime)
 
 **Create account**
 - Location: `Settings → Account Management → New Account` form.
-- Inputs:
-  - `name` (required text)
-  - `type` (required, select from allowed `AccountType`)
-  - `nature` (required, `ASSET` or `LIABILITY`)
-- Backend:
-  - `POST /api/accounts`
-  - Validates:
-    - `name`, `type`, `nature` must be present.
-    - `type` must be one of valid `AccountType` enum values.
-    - `nature` must be one of `ASSET` or `LIABILITY`.
-  - On success: persists account; returns the created account (201) and UI refreshes list.
-  - On failure: returns 400 with error JSON (no explicit UI error handling defined).
+- Inputs: `name` (required), `type` (required), `nature` (required).
+- Backend: `POST /api/accounts` — validates all fields; returns 201 on success, 400 on failure.
 
 **List accounts**
-- Location: `Settings → Account Management`.
-- Data source:
-  - `GET /api/accounts`
-  - Includes related transactions for each account (used elsewhere for balance/net-worth calc).
-- UI behavior:
-  - If no accounts: show “No accounts yet.”
-  - Otherwise: show list with:
-    - Name
-    - Type (badge)
-    - Nature (ASSET/LIABILITY with colored badge)
-    - Actions: `Edit`, `Delete`.
+- `GET /api/accounts` — returns non-archived accounts only (`isArchived: false`), includes related transactions.
+- UI shows name, type badge, nature badge (ASSET/LIABILITY), and Edit/Archive actions.
 
 **Edit account**
-- Trigger: Click `Edit` on an account row.
-- Behavior:
-  - Row switches into inline edit form:
-    - Editable `name`, `type`, `nature`.
-  - Submit:
-    - `PUT /api/accounts/:id`
-    - Partial updates allowed; validates type/nature if provided.
-  - On success: exits edit mode and refetches list.
+- Inline edit row: editable `name`, `type`, `nature`.
+- `PUT /api/accounts/:id` — partial updates, validates type/nature if provided.
 
-**Delete account**
-- Trigger: Click `Delete` on an account row.
-- Confirmation: Browser `confirm("Delete this account and all its transactions?")`.
-- Backend:
-  - `DELETE /api/accounts/:id`
-  - Deletes account record (and, implicitly via DB relations, its transactions).
-- On success: refetches accounts.
+**Archive account (soft-delete)**
+- Trigger: `Archive` button + `confirm()` dialog.
+- `DELETE /api/accounts/:id` — sets `isArchived = true`; does not delete the record or its transactions.
+- After archiving: account and its transactions are hidden from all views (dashboard, filters, transaction form, transfer form).
+
+---
 
 #### 3.3 Categories Management (`/settings` + `/api/categories`)
 
 **Entities**
-- Category fields:
-  - `id` (string, cuid)
-  - `name` (string)
-  - `type` (TransactionType: `INCOME` or `EXPENSE`)
-  - `createdAt` (DateTime)
+- Category fields: `id`, `name`, `type` (`INCOME` | `EXPENSE`), `createdAt`.
 
-**Create category**
-- Location: `Settings → Category Management → New Category`.
-- Inputs:
-  - `name` (required text)
-  - `type` (required, `INCOME` or `EXPENSE`)
-- Backend:
-  - `POST /api/categories`
-  - Validates:
-    - `name` and `type` required.
-    - `type` must be `INCOME` or `EXPENSE`.
-  - On success: returns created category (201) and UI refetches categories.
-
-**List categories**
-- Location: `Settings → Category Management`.
-- Data source:
-  - `GET /api/categories` (ordered by `createdAt` asc).
-- UI:
-  - If empty: show “No categories yet.”
-  - Otherwise: list showing:
-    - Name
-    - Type badge (`INCOME` or `EXPENSE` with colored styling).
-    - Actions: `Edit`, `Delete`.
-
-**Edit category**
-- Inline edit similar to accounts:
-  - Edit `name` and `type`.
-  - `PUT /api/categories/:id` with partial update permitted.
-  - Validates `type` if provided.
-  - On success: closes edit mode and refetches categories.
+**Create / List / Edit**
+- Same pattern as accounts (inline edit).
+- `POST /api/categories`, `GET /api/categories` (ordered by `createdAt` asc), `PUT /api/categories/:id`.
 
 **Delete category**
-- Trigger: `Delete` button.
-- Confirmation: `confirm("Delete this category?")`.
-- Backend:
-  - `DELETE /api/categories/:id`
-  - On success: refetches categories.
+- `DELETE /api/categories/:id`
+- Checks for linked transactions before deleting:
+  - If any exist: returns 400 `"Cannot delete: this category has linked transactions."` — shown inline in UI.
+  - If none: deletes.
+
+---
 
 #### 3.4 Display Currency Preference (`/settings` + `/api/settings`)
 
-**Entities**
-- Setting record:
-  - `key` (string, primary key) — currently uses `"currency"`.
-  - `value` (string) — currency code (e.g., `"USD"`).
+- `Setting` record: `key = "currency"`, `value` = ISO currency code (e.g. `"USD"`).
+- Supported: ~20 currencies with labels (e.g. `USD — US Dollar`, `VND - Vietnamese Dong`).
+- `GET /api/settings` → `{ currency: "USD" }` (default if unset).
+- `PUT /api/settings` → upserts currency, returns new value.
+- Dashboard reads via Prisma server-side; Transactions, Transfers, Reports fetch via API client-side.
+- **No FX conversion** — currency affects display formatting only (`toLocaleString` with `style: "currency"`).
 
-**Supported currencies (UI)**
-- Hardcoded list of ISO-like codes (e.g. `USD`, `EUR`, `GBP`, `JPY`, etc.) with labels like `USD — US Dollar`.
+---
 
-**Current currency behavior**
-- At settings load:
-  - `GET /api/settings` returns `{ currency: setting.value ?? "USD" }`.
-  - UI initializes `currency` state with returned value or `"USD"` if none.
-- Change currency:
-  - User selects a currency from dropdown.
-  - Triggers:
-    - Local state update for `currency`.
-    - `PUT /api/settings` with JSON `{ currency }`.
-  - Backend:
-    - Validates `currency` is a non-empty string.
-    - `upsert` into `Setting` table with key `"currency"`.
-    - Returns `{ currency: setting.value }`.
-- Usage:
-  - Dashboard and Transactions pages read `currency` via:
-    - `prisma.setting.findUnique({ key: "currency" })` on the server (dashboard).
-    - `GET /api/settings` on the client (transactions & settings) and apply to formatting.
-  - **No FX conversion**:
-    - Stored amounts are raw numeric values; currency only affects display formatting (`toLocaleString` with `style: "currency"`).
+#### 3.5 Dark Mode (`/settings` + `/api/settings`)
 
-#### 3.5 Transactions (`/transactions` + `/api/transactions`)
+- `Setting` record: `key = "theme"`, `value` = `"light"` | `"dark"`.
+- Toggle in Settings → Display Preferences.
+- Applied via a CSS class on the root element (`<html>` or `<body>`).
+- `GET /api/settings` returns both `currency` and `theme`; `PUT /api/settings` accepts either or both.
+- Default: `"light"`.
+
+---
+
+#### 3.6 Transactions (`/transactions` + `/api/transactions`)
 
 **Entities**
 - Transaction fields:
   - `id` (string, cuid)
   - `amount` (Float)
-  - `type` (TransactionType: `INCOME` or `EXPENSE`)
+  - `type` (`INCOME` | `EXPENSE`)
   - `description` (string)
-  - `createdAt` (DateTime)
+  - `note` (string, optional) — free-text memo, separate from description
+  - `date` (DateTime) — user-specified transaction date+time
+  - `createdAt` (DateTime) — system record creation timestamp
   - `accountId` (string, FK → Account)
   - `categoryId` (string, FK → Category)
-  - Relations:
-    - `account` (Account)
-    - `category` (Category)
+  - `goalId` (string, optional FK → Goal) — for general goal tracking
 
 **List & filter transactions**
-- Data source (client side):
-  - `GET /api/transactions` with optional query parameters:
-    - `accountId` — filter by account.
-    - `categoryId` — filter by category.
-    - `type` — `INCOME` or `EXPENSE`.
-    - `search` — substring match on description (case-insensitive).
-    - `sort` — one of:
-      - `date_desc` (default)
-      - `date_asc`
-      - `amount_desc`
-      - `amount_asc`
-  - Backend:
-    - Applies filters and sorting.
-    - Includes `account` and `category` relations in result.
-  - UI:
-    - Displays a table with:
-      - Date (`createdAt` localized date string).
-      - Description.
-      - Account name (or `—` if missing).
-      - Category name (or `—` if missing).
-      - Type badge (`INCOME` or `EXPENSE`).
-      - Amount:
-        - formatted as currency using selected display currency.
-        - prefixed: `+` for income, `-` for expense.
-    - If no results: shows “No transactions found.”
+- `GET /api/transactions` with optional query parameters:
+  - `accountId` — filter by account.
+  - `categoryIds` — comma-separated list; filter by one or more categories.
+  - `type` — `INCOME` or `EXPENSE`.
+  - `search` — substring match on description (case-insensitive).
+  - `dateFrom` / `dateTo` — filter by `date` range (ISO strings).
+  - `sort` — `date_desc` (default), `date_asc`, `amount_desc`, `amount_asc`.
+  - `page` / `pageSize` — pagination (default page 1, pageSize 50).
+- Backend:
+  - Excludes transactions linked to archived accounts.
+  - Returns paginated results with total count.
+  - Includes `account`, `category`, and `goal` relations.
+- UI table (compact density):
+  - Columns: Date, Description, Account, Category, Type badge, Amount (`+`/`-` prefix, display currency), Actions.
+  - Pagination controls below table.
+  - No results: "No transactions found."
 
 **Filters (client UI)**
-- Available controls:
-  - Account select:
-    - Options: `All accounts` plus all accounts from `GET /api/accounts`.
-  - Category select:
-    - Options: `All categories` plus all categories from `GET /api/categories`.
-  - Type select:
-    - Options: `All types`, `INCOME`, `EXPENSE`.
-  - Sort select:
-    - Options: `Newest first`, `Oldest first`, `Amount (high→low)`, `Amount (low→high)`.
-  - Search input:
-    - Free-text search on description (debounce not implemented; triggers on change).
-- Behavior:
-  - Filter state is stored in React state.
-  - Any change triggers re-fetch of `/api/transactions` with query parameters.
+- Account select (non-archived only).
+- Category multi-select (one or more categories).
+- Date range: from/to date inputs.
+- Type select: All / INCOME / EXPENSE.
+- Sort select.
+- Free-text search on description.
+- Any change re-fetches page 1.
 
-**Create transaction**
-- Location: `/transactions` — “+ Add Transaction” toggles a form.
-- Inputs (all required):
-  - Account (select from existing accounts).
-  - Amount:
-    - Numeric input.
-    - Min `0.01`, step `0.01`.
-  - Type:
-    - `INCOME` or `EXPENSE`.
-  - Category:
-    - Select from categories filtered by currently chosen type.
-  - Description:
-    - Free text, required.
+**Add / Edit transaction — Modal form**
+- Trigger: "+ Add Transaction" button opens a modal dialog.
+- Edit: clicking `Edit` on a row opens the same modal pre-populated.
+- Form fields (all required unless noted):
+  - Account (select, non-archived).
+  - Amount (numeric, min 0.01, step 0.01).
+  - Type (`INCOME` / `EXPENSE`).
+  - Category (filtered by selected type).
+  - Description (text, required).
+  - Note (text, optional).
+  - Date & Time (date+time picker, defaults to now).
+  - Goal (optional select from existing GENERAL goals).
 - Backend:
-  - `POST /api/transactions` with body:
-    - `accountId` (string)
-    - `amount` (string or number; parsed into float)
-    - `type` (`INCOME` or `EXPENSE`)
-    - `description` (string)
-    - `categoryId` (string)
-  - Validation:
-    - All fields required.
-    - `type` must be `INCOME` or `EXPENSE`.
-  - On success:
-    - Creates transaction.
-    - Returns created transaction with `account` and `category`.
-    - UI:
-      - Clears amount, description, category inputs.
-      - Keeps account and type as-is.
-      - Re-fetches transactions to refresh list.
+  - Create: `POST /api/transactions`.
+  - Edit: `PUT /api/transactions/:id`.
+  - Validates all required fields; `type` must be `INCOME` or `EXPENSE`.
+  - Returns transaction with `account`, `category`, `goal` relations.
+- On success: closes modal, refetches list.
+
+**Delete transaction**
+- `DELETE /api/transactions/:id` — hard delete.
+- Confirmation: `confirm()` dialog.
 
 **Error handling**
-- API sends back JSON errors (400) for invalid input.
-- Client code does not currently surface error messages to the UI (no toast or inline error).
+- Write failures (create/edit/delete) surface an inline error message.
+- Fetch failures are silent.
 
-#### 3.6 Dashboard (`/dashboard` + `/api/dashboard/summary`)
+---
 
-**Dashboard server-rendered page**
-- Data gathering:
-  - `prisma.account.findMany({ include: { transactions: true } })`.
-  - `prisma.setting.findUnique({ key: "currency" })`.
-  - Separately, `prisma.transaction.findMany({ orderBy: createdAt asc, include: { account: true }})` for history.
+#### 3.7 Transfers (`/transfers` + `/api/transfers`)
+
+Transfers represent money moving between the user's own accounts. They are **not** income or expense and do not affect monthly income/expense totals or net worth calculations.
+
+**Entities**
+- Transfer fields:
+  - `id` (string, cuid)
+  - `amount` (Float)
+  - `fromAccountId` (string, FK → Account)
+  - `toAccountId` (string, FK → Account)
+  - `description` (string)
+  - `note` (string, optional)
+  - `date` (DateTime) — user-specified
+  - `createdAt` (DateTime)
+  - `goalId` (string, optional FK → Goal) — optionally linked to a goal
+
+**List transfers**
+- `GET /api/transfers` — paginated, sorted by `date` desc by default.
+- Excludes transfers involving archived accounts.
+- UI table: Date, Description, From Account, To Account, Amount, Goal (if linked), Actions.
+
+**Add / Edit transfer — Modal form**
+- Same modal pattern as transactions.
+- Form fields:
+  - From Account (select, non-archived; cannot equal To Account).
+  - To Account (select, non-archived; cannot equal From Account).
+  - Amount (numeric, min 0.01).
+  - Description (text, required).
+  - Note (text, optional).
+  - Date & Time (date+time picker, defaults to now).
+  - Goal (optional select from existing goals).
+- Backend:
+  - Create: `POST /api/transfers`.
+  - Edit: `PUT /api/transfers/:id`.
+  - Validates: from ≠ to, amount > 0, accounts exist and are not archived.
+
+**Delete transfer**
+- `DELETE /api/transfers/:id` — hard delete.
+- Confirmation: `confirm()` dialog.
+
+---
+
+#### 3.8 Goals (`/goals` + `/api/goals`)
+
+Two goal types:
+
+- **SAVINGS** — linked to a specific account. Progress = current account balance toward a target amount.
+- **GENERAL** — not account-linked. Transactions and transfers can optionally reference it. Progress = sum of linked transaction amounts toward a target.
+
+**Entities**
+- Goal fields:
+  - `id` (string, cuid)
+  - `name` (string)
+  - `type` (`SAVINGS` | `GENERAL`)
+  - `targetAmount` (Float, optional)
+  - `targetDate` (DateTime, optional)
+  - `accountId` (string, optional FK → Account) — SAVINGS goals only
+  - `description` (string, optional)
+  - `isCompleted` (Boolean, default `false`)
+  - `createdAt` (DateTime)
+
+**Goals page (`/goals`)**
+- List all goals (active and completed, separated or filterable).
+- Each goal card shows:
+  - Name, type, description.
+  - Progress bar: current amount / target amount.
+  - Target date (if set) with countdown or overdue indicator.
+  - For SAVINGS: linked account name and current balance.
+  - For GENERAL: list of linked transactions/transfers.
+  - Actions: Edit, Mark Complete, Delete.
+- Create goal: form (name, type, target amount, target date, linked account for SAVINGS, description).
+- Edit goal: same form pre-populated.
+- Delete goal: `confirm()` dialog; does not delete linked transactions/transfers.
+
+**Dashboard goals widget**
+- Compact section below summary cards.
+- Shows active goals only (not completed).
+- Each goal: name, progress bar (current/target), target date.
+- "View all goals" link to `/goals`.
+
+**API**
+- `GET /api/goals` — list goals with computed progress.
+- `POST /api/goals` — create.
+- `PUT /api/goals/:id` — edit.
+- `DELETE /api/goals/:id` — delete (unlinks transactions/transfers, does not delete them).
+
+---
+
+#### 3.9 Dashboard (`/dashboard`)
+
+**Data gathering (server-rendered, parallel)**
+- `prisma.account.findMany({ where: { isArchived: false }, include: { transactions: true } })`
+- `prisma.setting.findMany()` — for currency and theme.
+- `prisma.transaction.findMany({ orderBy: { date: "asc" }, include: { account: true } })` — excludes archived accounts.
+- `prisma.goal.findMany({ where: { isCompleted: false } })` — for goals widget.
+
+**Freshness**: server-renders on each navigation; no polling. Navigate away and back to refresh.
 
 **Computed metrics**
-- Date ranges:
-  - `monthStart`: first day of current calendar month (local time).
-- Per-account:
-  - `income` = sum of transaction amounts with `type === "INCOME"`.
-  - `expense` = sum of transaction amounts with `type === "EXPENSE"`.
-  - `balance`:
-    - For ASSET accounts: `income - expense`.
-    - For LIABILITY accounts: `expense - income` (so liabilities naturally reduce net worth).
-- Aggregates:
-  - `assetBalance` = sum of balances for accounts with `nature === "ASSET"`.
-  - `liabilityBalance` = sum of balances for accounts with `nature === "LIABILITY"`.
-  - `totalNetWorth` = `assetBalance - liabilityBalance`.
-  - `monthlyIncome`:
-    - Sum of amounts for all INCOME transactions with `createdAt >= monthStart`.
-  - `monthlyExpense`:
-    - Sum of amounts for all EXPENSE transactions with `createdAt >= monthStart`.
-  - `netCashFlow` = `monthlyIncome - monthlyExpense`.
-- Net worth history:
-  - Groups all transactions by `YYYY-MM` (year-month).
-  - For each month, `delta`:
-    - Adds `amount` for `INCOME`, subtracts for `EXPENSE`.
-  - Computes running cumulative `netWorth` over months, sorted chronologically.
+- `monthStart`: first day of current calendar month (local time).
+- Per-account balance:
+  - ASSET: `income - expense`.
+  - LIABILITY: `expense - income`.
+- Aggregates: `assetBalance`, `liabilityBalance`, `totalNetWorth = assetBalance - liabilityBalance`.
+- Monthly: `monthlyIncome`, `monthlyExpense` (transactions with `date >= monthStart`, non-archived accounts only).
+- `netCashFlow = monthlyIncome - monthlyExpense`.
+- Transfers excluded from all income/expense/net-worth calculations.
+
+**Net worth history (account-aware)**
+- Groups transactions by `date` month (`YYYY-MM`).
+- Per-month delta respects account nature:
+  - ASSET INCOME: `+amount`. ASSET EXPENSE: `-amount`.
+  - LIABILITY INCOME: `+amount` (reduces liability). LIABILITY EXPENSE: `-amount` (increases liability).
+- Running cumulative `netWorth`, sorted chronologically.
+- Excludes archived accounts.
 
 **Dashboard UI sections**
-- Summary cards:
-  - Cards displayed in a grid:
-    - Total Net Worth.
-    - This Month Income.
-    - This Month Expense.
-    - Net Cash Flow.
-  - Values:
-    - Formatted as currency in selected display currency.
-    - Colors: green for positive, red for negative where applicable.
-- Account balances:
-  - List of each account with:
-    - Name.
-    - Type badge.
-    - Nature badge (ASSET/LIABILITY).
-    - Balance formatted in display currency.
-    - Balance color: green if ≥0, red if <0.
-  - Empty state: “No accounts yet. Go to Settings to create one.”
-- Net worth over time:
-  - Simple table:
-    - Month (YYYY-MM).
-    - Cumulative Net Worth (formatted currency, colored by sign).
-  - Empty state: “No transaction history yet.”
+1. **Summary cards** (grid): Total Net Worth, This Month Income, This Month Expense, Net Cash Flow.
+2. **Account balances**: list of non-archived accounts with name, type, nature badges, balance (color-coded).
+3. **Goals widget**: compact goal progress cards (active goals only), link to `/goals`.
+4. **Net worth over time**: table of `YYYY-MM` → cumulative net worth (formatted, color-coded).
 
-**Dashboard summary API**
-- `/api/dashboard/summary`:
-  - Returns:
-    - `totalNetWorth`
-    - `monthlyIncome`
-    - `monthlyExpense`
-    - `netCashFlow`
-    - `accountBalances` (id, name, type, nature, balance)
-    - `netWorthHistory` (array of `{ month, netWorth }`)
-  - Mirrors the computations performed in the dashboard page (no consumer in current UI, but available for future clients).
+---
+
+#### 3.10 Reports (`/reports`)
+
+**Charts**: simple built-in charts using a lightweight library (e.g. Recharts). No heavy interactive features required.
+
+**Sections**
+
+1. **Spending by Category** (monthly)
+   - Bar or pie chart showing expense totals per category for the selected month.
+   - Month selector (default: current month).
+
+2. **Income by Category** (monthly)
+   - Same as above but for INCOME transactions.
+
+3. **Spending by Account** (monthly)
+   - Bar chart showing expense totals per account for the selected month.
+
+4. **Income vs Expense Over Time**
+   - Grouped bar or line chart: monthly income vs expense for the trailing 12 months (or custom range).
+
+5. **Net Worth Over Time**
+   - Line chart of cumulative net worth history (same data as the dashboard table, visualized).
+
+**Filters**
+- Date range picker (applies to all sections simultaneously).
+- Account filter (applies where relevant).
+
+---
+
+#### 3.11 CSV Export & Import (`/transactions` + `/api/export`)
+
+**Export (implemented)**
+- Two exports accessible from the Transactions page:
+  1. **Transactions CSV**: date, description, account, category, type, amount, note. All transactions, sorted by date desc.
+  2. **Full data dump** (zip): `accounts.csv`, `categories.csv`, `transactions.csv`, `transfers.csv`, `goals.csv`.
+- Backend generates and streams the file.
+
+**Import (future / nice-to-have)**
+- Upload a CSV file with transaction data.
+- UI maps CSV columns to app fields (account, category, type, amount, date, description).
+- Validates rows before import; shows preview with error summary.
+- Not in current scope — added when needed.
+
+---
 
 ### 4. Data Model
 
-- **Account**
-  - `id: String @id @default(cuid())`
-  - `name: String`
-  - `type: AccountType`
-  - `nature: AccountNature`
-  - `createdAt: DateTime @default(now())`
-  - `transactions: Transaction[]`
+**Account**
+```
+id          String        @id @default(cuid())
+name        String
+type        AccountType
+nature      AccountNature
+isArchived  Boolean       @default(false)
+createdAt   DateTime      @default(now())
+transactions Transaction[]
+transfersFrom Transfer[]  @relation("FromAccount")
+transfersTo   Transfer[]  @relation("ToAccount")
+goals         Goal[]
+```
 
-- **Category**
-  - `id: String @id @default(cuid())`
-  - `name: String`
-  - `type: TransactionType`
-  - `createdAt: DateTime @default(now())`
-  - `transactions: Transaction[]`
+**Category**
+```
+id           String          @id @default(cuid())
+name         String
+type         TransactionType
+createdAt    DateTime        @default(now())
+transactions Transaction[]
+```
 
-- **Transaction**
-  - `id: String @id @default(cuid())`
-  - `amount: Float`
-  - `type: TransactionType`
-  - `description: String`
-  - `createdAt: DateTime @default(now())`
-  - `accountId: String` (FK)
-  - `categoryId: String` (FK)
+**Transaction**
+```
+id          String          @id @default(cuid())
+amount      Float
+type        TransactionType
+description String
+note        String?
+date        DateTime
+createdAt   DateTime        @default(now())
+accountId   String          (FK → Account)
+categoryId  String          (FK → Category)
+goalId      String?         (FK → Goal, optional)
+```
 
-- **Setting**
-  - `key: String @id`
-  - `value: String`
+**Transfer**
+```
+id            String    @id @default(cuid())
+amount        Float
+description   String
+note          String?
+date          DateTime
+createdAt     DateTime  @default(now())
+fromAccountId String    (FK → Account)
+toAccountId   String    (FK → Account)
+goalId        String?   (FK → Goal, optional)
+```
 
-### 5. Non-Functional Behavior (Current)
+**Goal**
+```
+id            String    @id @default(cuid())
+name          String
+type          GoalType  (SAVINGS | GENERAL)
+targetAmount  Float?
+targetDate    DateTime?
+accountId     String?   (FK → Account, SAVINGS goals only)
+description   String?
+isCompleted   Boolean   @default(false)
+createdAt     DateTime  @default(now())
+transactions  Transaction[]
+transfers     Transfer[]
+```
 
-- **Authentication/authorization**:
-  - Not implemented. All routes assume open access and a single logical user context.
-- **Validation**:
-  - Performed on backend for required fields and enum correctness.
-  - No explicit numeric range checking on transaction `amount` beyond client-side min/step.
-  - No cross-entity validation (e.g., preventing delete when referenced) beyond Prisma/DB constraints.
-- **Error handling**:
-  - APIs return structured JSON errors and appropriate HTTP status codes (mainly 400 for invalid input).
-  - The current UI does not surface error messages; failures would be silent from the user’s perspective.
-- **Performance/scalability**:
-  - Simple `findMany` queries with eager loading of related data.
-  - No pagination on transaction list or account list.
-  - Meant for small personal datasets.
+**Setting**
+```
+key   String @id
+value String
+```
+Current keys: `"currency"` (ISO code), `"theme"` (`"light"` | `"dark"`).
 
-### 6. Out of Scope (Explicit / Implied)
+---
 
-- **Multi-user support** (logins, user accounts, per-user data isolation).
-- **Budgeting features** (budgets, goals, alerts).
-- **Recurring transactions** or scheduled imports.
-- **External bank integrations** or automatic imports.
+### 5. Non-Functional Behavior
+
+- **Authentication/authorization**: Not implemented. Single-tenant, permanently out of scope.
+- **Platform**: Desktop browser only. No mobile optimization.
+- **Visual style**: Rich color usage — color-coded account types and nature badges, category chips in distinct colors, chart color ranges.
+- **Dark mode**: User-toggleable via Settings. Stored as `theme` setting. Applied via root CSS class.
+- **Validation**: Backend validates required fields and enums. Category delete blocked if linked transactions exist. Transfer from ≠ to account.
+- **Error handling**: Write failures surface inline. Fetch failures are silent.
+- **Pagination**: Transactions and Transfers lists paginated (default 50/page). Accounts and categories unpaginated.
+- **Confirmations**: `browser confirm()` dialog for all destructive actions.
+- **Add/Edit forms**: Modal/dialog pattern for Transactions and Transfers.
+- **Charts**: Lightweight library (e.g. Recharts). Simple bar/line charts; no interactive zoom or brushing required.
+- **Performance**: Designed for personal-scale datasets. No caching layer.
+
+---
+
+### 6. Out of Scope (Explicit / Permanent)
+
+- **Multi-user support** — permanently out of scope.
+- **Mobile-specific UI** — desktop only.
 - **Real FX conversion** or multi-currency accounting.
-- **Mobile-specific UI** beyond basic responsive layout provided by CSS.
-
+- **Recurring/scheduled transactions**.
+- **External bank integrations** or automatic imports.
+- **Split transactions** (single transaction across multiple categories).
+- **Receipt or file attachments**.
+- **Budgeting with hard limits** (spending caps, alerts).
+- **CSV import** — deferred, nice-to-have for a future version.

@@ -33,6 +33,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const linked = await prisma.transaction.count({ where: { categoryId: id } });
+  if (linked > 0) {
+    return NextResponse.json(
+      { error: `Cannot delete: this category has ${linked} linked transaction${linked === 1 ? "" : "s"}.` },
+      { status: 400 }
+    );
+  }
   await prisma.category.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

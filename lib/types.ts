@@ -23,6 +23,8 @@ export type Transaction = {
   amount: number;
   type: TransactionType;
   description: string;
+  note?: string;
+  date: string;
   createdAt: string;
   accountId: string;
   categoryId: string;
@@ -35,6 +37,7 @@ export type Account = {
   name: string;
   type: AccountType;
   nature: AccountNature;
+  isArchived: boolean;
   createdAt: string;
   transactions?: Transaction[];
 };
